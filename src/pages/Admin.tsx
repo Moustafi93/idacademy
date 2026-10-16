@@ -24,6 +24,7 @@ interface Stats {
 interface Etudiant {
   id: string
   prenom: string
+  nom?: string | null
   email: string | null
   telephone: string | null
   role: 'etudiant' | 'admin'
@@ -39,7 +40,7 @@ const ONGLETS: { statut: StatutPaiement; nom: string }[] = [
 ]
 
 const MOTIFS = ['Référence introuvable', 'Montant incorrect', 'Paiement non reçu']
-const SELECT_PAIEMENT = '*, profils!paiements_user_id_fkey(prenom, email, telephone)'
+const SELECT_PAIEMENT = '*, profils!paiements_user_id_fkey(*)'
 const dateCourte = (d: string | number) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function Admin() {
@@ -78,7 +79,9 @@ export default function Admin() {
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="m-0 text-[13px] font-bold text-gris">Espace administrateur</p>
+          <p className="m-0 text-[13px] font-bold text-gris">
+            Espace administrateur · <Link to="/diagnostic">Diagnostic du site</Link>
+          </p>
           <h1 className="m-0 font-display text-3xl font-bold">{vue === 'paiements' ? 'Paiements' : 'Étudiants'}</h1>
         </div>
         <div role="tablist" aria-label="Rubrique" className="flex gap-1 rounded-full border border-ligne bg-white p-1">
@@ -291,9 +294,9 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
 
   const charger = useCallback(async () => {
     if (!supabase) return
-    let requete = supabase.from('profils').select('id, prenom, email, telephone, role, acces_jusquau, type_acces, cree_le').order('cree_le', { ascending: false }).limit(50)
+    let requete = supabase.from('profils').select('*').order('cree_le', { ascending: false }).limit(50)
     const r = recherche.trim().replace(/[,()%*]/g, '')
-    if (r) requete = requete.or(`email.ilike.%${r}%,prenom.ilike.%${r}%,telephone.ilike.%${r}%`)
+    if (r) requete = requete.or(`email.ilike.%${r}%,prenom.ilike.%${r}%,nom.ilike.%${r}%,telephone.ilike.%${r}%`)
     const { data, error } = await requete
     if (error) setMessage(`Erreur : ${error.message}`)
     setEtudiants((data ?? []) as Etudiant[])
@@ -312,6 +315,7 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
       .map((c) => ({
         id: c.utilisateur.email,
         prenom: c.utilisateur.prenom,
+        nom: c.utilisateur.nom,
         email: c.utilisateur.email,
         telephone: null,
         role: c.utilisateur.role,
@@ -319,7 +323,7 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
         type_acces: c.typeAcces,
         cree_le: null,
       }))
-      .filter((e) => !r || e.email.includes(r) || e.prenom.toLowerCase().includes(r))
+      .filter((e) => !r || e.email.includes(r) || `${e.prenom} ${e.nom ?? ''}`.toLowerCase().includes(r))
   }, [demo, etudiants, recherche])
 
   const ouvrirHistorique = async (e: Etudiant) => {
@@ -337,7 +341,7 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
       setMessage(r.message)
     } else {
       const { data, error } = await supabase!.rpc('enregistrer_paiement_admin', { p_user: e.id, p_formule: formule, p_moyen: moyen, p_note: note })
-      setMessage(error ? `Erreur : ${error.message}` : (data as { ok: boolean; message: string }).ok ? `Accès ajouté à ${e.prenom || e.email}.` : (data as { message: string }).message)
+      setMessage(error ? `Erreur : ${error.message}` : (data as { ok: boolean; message: string }).ok ? `Accès ajouté à ${`${e.prenom} ${e.nom ?? ''}`.trim() || e.email}.` : (data as { message: string }).message)
       charger()
       apresAction()
     }
@@ -358,7 +362,7 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
       <input
         type="search"
         aria-label="Rechercher un étudiant"
-        placeholder="Rechercher par prénom, e-mail ou téléphone…"
+        placeholder="Rechercher par nom, prénom, e-mail ou téléphone…"
         value={recherche}
         onChange={(e) => setRecherche(e.target.value)}
         className="h-11 rounded-full border border-ligne bg-white px-4 text-sm"
@@ -376,7 +380,7 @@ function OngletEtudiants({ apresAction }: { apresAction: () => void }) {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="flex min-w-0 flex-[1_1_220px] flex-col">
                   <span className="font-bold">
-                    {e.prenom || 'Sans prénom'} {e.role === 'admin' && <span className="ml-1 rounded-full bg-encre px-2 py-0.5 text-[11px] font-extrabold text-white">admin</span>}
+                    {`${e.prenom} ${e.nom ?? ''}`.trim() || 'Sans nom'} {e.role === 'admin' && <span className="ml-1 rounded-full bg-encre px-2 py-0.5 text-[11px] font-extrabold text-white">admin</span>}
                   </span>
                   <span className="text-sm font-semibold text-gris">
                     {e.email}

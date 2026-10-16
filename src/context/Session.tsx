@@ -26,6 +26,7 @@ const JOUR_MS = 24 * 60 * 60 * 1000
 export interface Utilisateur {
   id: string
   prenom: string
+  nom: string
   email: string
   telephone: string | null
   role: 'etudiant' | 'admin'
@@ -77,7 +78,7 @@ interface SessionApi extends EtatSession {
   aAccesComplet: boolean
   joursRestants: number
   estAdmin: boolean
-  inscrire: (prenom: string, email: string, motDePasse: string) => Promise<Resultat>
+  inscrire: (prenom: string, nom: string, email: string, motDePasse: string) => Promise<Resultat>
   connecter: (email: string, motDePasse: string) => Promise<Resultat>
   motDePasseOublie: (email: string) => Promise<Resultat>
   deconnecter: () => Promise<void>
@@ -98,24 +99,41 @@ function aujourdhui() {
 const ajouterJour = (jours: string[]) => (jours.includes(aujourdhui()) ? jours : [...jours, aujourdhui()].slice(-90))
 const prolonger = (fin: number | null, jours: number) => Math.max(fin ?? 0, Date.now()) + jours * JOUR_MS
 
-// Messages d'erreur de Supabase traduits pour les étudiants
-function traduireErreur(message: string): string {
-  const regles: [RegExp, string][] = [
-    [/invalid login credentials/i, 'E-mail ou mot de passe incorrect.'],
-    [/email not confirmed/i, "Confirme d'abord ton adresse e-mail : clique sur le lien reçu par mail."],
-    [/already registered|already exists/i, 'Un compte existe déjà avec cet e-mail. Connecte-toi.'],
-    [/password should be at least (\d+)/i, 'Le mot de passe doit contenir au moins 6 caractères.'],
-    [/unable to validate email|invalid email|email address .* is invalid/i, "Cette adresse e-mail n'est pas valide."],
-    [/rate limit|too many requests|security purposes/i, 'Trop de tentatives. Patiente une minute puis réessaie.'],
-    [/failed to fetch|network/i, 'Pas de connexion internet. Vérifie ta connexion et réessaie.'],
+// Erreurs de Supabase traduites en français, avec la marche à suivre.
+// Le détail technique est gardé pour la page /diagnostic et pour l'administrateur.
+type ErreurSupabase = { message?: string; code?: string; status?: number }
+
+function traduireErreur(erreur: ErreurSupabase): Resultat {
+  const m = erreur.message ?? ''
+  const code = erreur.code ?? ''
+  const detail = `${code || (erreur.status ? `HTTP ${erreur.status}` : 'erreur')} — ${m}`
+  const regles: [boolean, string][] = [
+    [code === 'email_address_not_authorized' || /not authorized/i.test(m),
+      "L'e-mail de confirmation n'a pas pu être envoyé : le service d'e-mail de Supabase n'est pas encore configuré (il n'envoie qu'aux membres de l'équipe Supabase). Administrateur : voir la page Diagnostic."],
+    [/error sending (confirmation|recovery|magic link|invite)/i.test(m),
+      "L'e-mail n'a pas pu être envoyé (réglages e-mail du serveur à vérifier). Réessaie plus tard ou contacte le support. Administrateur : voir la page Diagnostic."],
+    [code === 'over_email_send_rate_limit' || /email rate limit/i.test(m),
+      "Trop d'e-mails envoyés pour le moment (le service gratuit de Supabase en autorise 2 par heure). Réessaie dans une heure."],
+    [code === 'invalid_credentials' || /invalid login credentials/i.test(m), 'E-mail ou mot de passe incorrect.'],
+    [code === 'email_not_confirmed' || /email not confirmed/i.test(m), "Confirme d'abord ton adresse e-mail : clique sur le lien reçu par mail (regarde aussi dans les spams)."],
+    [code === 'user_already_exists' || code === 'email_exists' || /already registered|already exists/i.test(m), 'Un compte existe déjà avec cet e-mail. Connecte-toi (onglet « Connexion »).'],
+    [code === 'weak_password' || /password should|password is too weak/i.test(m), 'Mot de passe trop faible : utilise au moins 6 caractères, avec des lettres et des chiffres.'],
+    [code === 'signup_disabled' || /signups not allowed/i.test(m), 'Les inscriptions sont fermées pour le moment.'],
+    [code === 'email_provider_disabled', "La connexion par e-mail n'est pas activée sur le serveur."],
+    [code === 'email_address_invalid' || /invalid.*email|unable to validate email/i.test(m), "Cette adresse e-mail n'est pas valide."],
+    [/database error saving new user/i.test(m), "Le compte n'a pas pu être enregistré : la base de données n'est pas complètement installée. Administrateur : voir la page Diagnostic."],
+    [/invalid api key|no api key/i.test(m) || erreur.status === 401, 'Le site est mal relié au serveur (clé Supabase invalide). Administrateur : voir la page Diagnostic.'],
+    [code === 'over_request_rate_limit' || /rate limit|too many requests|security purposes/i.test(m), 'Trop de tentatives. Patiente une minute puis réessaie.'],
+    [/failed to fetch|network|load failed/i.test(m), 'Impossible de joindre le serveur. Vérifie ta connexion internet et réessaie.'],
   ]
-  return regles.find(([motif]) => motif.test(message))?.[1] ?? 'Une erreur est survenue. Réessaie dans un instant.'
+  const trouve = regles.find(([condition]) => condition)
+  return { ok: false, message: trouve?.[1] ?? 'Une erreur inattendue est survenue. Réessaie, ou envoie le détail ci-dessous au support.', detail }
 }
 
 function lireEtatLocal(): EtatSession {
   const e = { ...ETAT_INITIAL, ...lire<Partial<EtatSession>>(CLE, {}) }
   // Anciennes sessions de démo (avant la version 2) : on complète l'utilisateur
-  if (e.utilisateur) e.utilisateur = Object.assign({ id: 'demo', telephone: null, role: 'etudiant' as const }, e.utilisateur)
+  if (e.utilisateur) e.utilisateur = Object.assign({ id: 'demo', nom: '', telephone: null, role: 'etudiant' as const }, e.utilisateur)
   return e
 }
 
@@ -184,7 +202,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const s = (statut.data ?? {}) as { en_attente?: boolean; refuse?: boolean }
     setEtat({
-      utilisateur: { id, prenom: p.prenom || p.email?.split('@')[0] || 'Étudiant', email: p.email ?? '', telephone: p.telephone, role: p.role },
+      utilisateur: { id, prenom: p.prenom || p.email?.split('@')[0] || 'Étudiant', nom: p.nom ?? '', email: p.email ?? '', telephone: p.telephone, role: p.role },
       essaiUtilise: p.essai_utilise,
       accesJusquau: p.acces_jusquau ? new Date(p.acces_jusquau).getTime() : null,
       typeAcces: p.type_acces,
@@ -230,7 +248,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // ——— Mode démo : ouvrir le compte d'un e-mail (le créer s'il n'existe pas)
   const ouvrirCompteDemo = useCallback(
-    (email: string, prenom?: string) => {
+    (email: string, prenom?: string, nom?: string) => {
       const cle = nettoyerEmail(email)
       const existant = comptesDemo[cle]
       if (existant) return setEtat(existant)
@@ -243,6 +261,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         utilisateur: {
           id: `demo-${cle}`,
           prenom: prenom?.trim() || cle.split('@')[0],
+          nom: nom?.trim() ?? '',
           email: cle,
           telephone: null,
           role: cle.startsWith('admin') ? 'admin' : 'etudiant',
@@ -254,17 +273,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // ——— Compte
   const inscrire = useCallback(
-    async (prenom: string, email: string, motDePasse: string): Promise<Resultat> => {
+    async (prenom: string, nom: string, email: string, motDePasse: string): Promise<Resultat> => {
       if (!supabase) {
-        ouvrirCompteDemo(email, prenom)
+        ouvrirCompteDemo(email, prenom, nom)
         return { ok: true, message: 'Compte de démonstration créé.' }
       }
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: motDePasse,
-        options: { data: { prenom: prenom.trim() }, emailRedirectTo: `${window.location.origin}/connexion` },
+        options: { data: { prenom: prenom.trim(), nom: nom.trim() }, emailRedirectTo: `${window.location.origin}/connexion` },
       })
-      if (error) return { ok: false, message: traduireErreur(error.message) }
+      if (error) return traduireErreur(error)
       if (!data.session) return { ok: true, message: `Presque fini ! Ouvre le mail envoyé à ${email.trim()} et clique sur le lien pour activer ton compte.` }
       return { ok: true, message: 'Bienvenue sur IDAcademy !' }
     },
@@ -278,7 +297,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return { ok: true, message: 'Connecté (démo).' }
       }
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: motDePasse })
-      if (error) return { ok: false, message: traduireErreur(error.message) }
+      if (error) return traduireErreur(error)
       return { ok: true, message: 'Connecté.' }
     },
     [ouvrirCompteDemo],
@@ -287,7 +306,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const motDePasseOublie = useCallback(async (email: string): Promise<Resultat> => {
     if (!supabase) return { ok: false, message: 'Indisponible en mode démo.' }
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/nouveau-mot-de-passe` })
-    if (error) return { ok: false, message: traduireErreur(error.message) }
+    if (error) return traduireErreur(error)
     return { ok: true, message: `Si un compte existe pour ${email.trim()}, tu vas recevoir un lien pour choisir un nouveau mot de passe.` }
   }, [])
 
@@ -303,7 +322,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (supabase) {
         if (!userId) return { ok: false, message: "Connecte-toi pour utiliser ton code d'essai." }
         const { data, error } = await supabase.rpc('utiliser_code_essai', { p_code: code })
-        if (error) return { ok: false, message: traduireErreur(error.message) }
+        if (error) return traduireErreur(error)
         await chargerCompte(userId)
         return data as Resultat
       }
@@ -320,7 +339,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (supabase) {
         if (!userId) return { ok: false, message: 'Connecte-toi pour déclarer ton paiement.' }
         const { data, error } = await supabase.rpc('declarer_paiement', { p_formule: formule, p_moyen: moyen, p_reference: reference, p_numero: numero })
-        if (error) return { ok: false, message: traduireErreur(error.message) }
+        if (error) return traduireErreur(error)
         await chargerCompte(userId)
         return data as Resultat
       }
@@ -343,7 +362,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         statut: 'en_attente',
         motif_refus: null,
         cree_le: new Date().toISOString(),
-        profils: { prenom: u.prenom, email: u.email, telephone: null },
+        profils: { prenom: u.prenom, nom: u.nom, email: u.email, telephone: null },
       }
       setPaiementsDemo((l) => [paiement, ...l])
       return { ok: true, message: 'Paiement déclaré. Ton accès sera activé dès la vérification (en général en moins de 2 heures).' }
@@ -388,7 +407,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           motif_refus: null,
           note_admin: note.trim() || null,
           cree_le: new Date().toISOString(),
-          profils: { prenom: compte.utilisateur.prenom, email, telephone: null },
+          profils: { prenom: compte.utilisateur.prenom, nom: compte.utilisateur.nom, email, telephone: null },
         },
         ...l,
       ])

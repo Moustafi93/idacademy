@@ -16,7 +16,7 @@ export function ListePaiements({ paiements, titre, actions }: { paiements: Paiem
             <div className="flex min-w-0 flex-[1_1_220px] flex-col">
               {p.profils && (
                 <span className="font-bold">
-                  {p.profils.prenom || 'Sans prénom'} <span className="font-semibold text-gris">· {p.profils.email}</span>
+                  {`${p.profils.prenom ?? ''} ${p.profils.nom ?? ''}`.trim() || 'Sans nom'} <span className="font-semibold text-gris">· {p.profils.email}</span>
                 </span>
               )}
               <span className="text-sm font-bold">

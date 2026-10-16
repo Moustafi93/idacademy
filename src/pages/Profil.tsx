@@ -20,7 +20,7 @@ export default function Profil() {
           {utilisateur.prenom.charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="m-0 font-display text-2xl font-bold">{utilisateur.prenom}</h1>
+          <h1 className="m-0 font-display text-2xl font-bold">{`${utilisateur.prenom} ${utilisateur.nom ?? ''}`.trim()}</h1>
           <p className="m-0 font-semibold text-gris">{utilisateur.email || 'Aucun e-mail renseigné'}</p>
         </div>
         <div className="flex flex-wrap gap-2">

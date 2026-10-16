@@ -33,6 +33,7 @@ Compte environ **2 heures** la première fois. Tout est gratuit au départ, sauf
 3. Exécute les fichiers du dossier `supabase/migrations/` **dans l'ordre**, un par requête : copie-colle le contenu, puis clique **Run**. Tu dois voir « Success » à chaque fois.
    1. `20261015000000_idacademy.sql` (tables, sécurité, paiements)
    2. `20261015120000_paiements_reserves_admin.sql` (paiements visibles par l'administrateur seulement)
+   3. `20261016000000_nom_et_diagnostic.sql` (nom et prénom à l'inscription, page Diagnostic)
 4. Nouvelle requête : copie-colle le fichier `supabase/contenu_premium.sql`, puis **Run**. Ça installe les chapitres premium.
 5. Va dans **Project Settings → API** et note :
    - **Project URL** (ex. `https://abcd1234.supabase.co`)
@@ -46,7 +47,7 @@ Compte environ **2 heures** la première fois. Tout est gratuit au départ, sauf
    - **Site URL** : l'adresse finale du site (ex. `https://idacademy.ci`). Tu pourras la changer après l'étape 4.
    - **Redirect URLs** : ajoute `https://idacademy.ci/connexion` et `https://idacademy.ci/nouveau-mot-de-passe` (avec ton adresse).
 2. **Authentication → Sign In / Providers → Email** : laisse **Confirm email** activé. Les étudiants confirmeront leur adresse par un lien.
-3. **Important : l'envoi des e-mails.** Le service d'e-mail fourni par Supabase est limité à quelques messages par heure, ce qui ne suffit pas pour un vrai site. Crée un compte gratuit chez **Brevo** (300 e-mails par jour) ou **Resend**, puis renseigne ses identifiants dans **Authentication → Emails → SMTP Settings**.
+3. **Important : l'envoi des e-mails.** Le service d'e-mail fourni par Supabase n'envoie qu'**aux membres de ton équipe Supabase**, et seulement **2 e-mails par heure**. Tant qu'il n'est pas remplacé, l'inscription des étudiants échoue avec « Email address not authorized ». Crée un compte gratuit chez **Brevo** (300 e-mails par jour) ou **Resend**, puis renseigne ses identifiants dans **Authentication → Emails → SMTP Settings**.
 4. Facultatif mais conseillé : dans **Authentication → Emails → Templates**, traduis les messages en français. Par exemple, pour l'objet de l'e-mail de confirmation : « Confirme ton compte IDAcademy ».
 
 ## Étape 3 — Mettre le code sur GitHub
@@ -177,3 +178,20 @@ La signature de chaque notification de Djamo est vérifiée (HMAC-SHA256) : pers
 npm run test:base
 ```
 Ce test lance PostgreSQL sur ton ordinateur et vérifie 57 règles. Par exemple : un étudiant ne peut pas se donner l'accès Premium, ne voit aucun paiement (même les siens), et ne peut pas lire le contenu premium sans abonnement.
+
+## Dépannage : « je n'arrive pas à m'inscrire ou à me connecter »
+
+1. Ouvre la page **`/diagnostic`** de ton site (ex. `https://idacademy.netlify.app/diagnostic`). Elle vérifie tout seule les variables Netlify, la clé Supabase, les fichiers SQL et les réglages d'inscription. Sous chaque ligne rouge, elle explique quoi corriger.
+2. Sur la page d'inscription, le message d'erreur dit maintenant la vraie cause, et le **détail technique** est affiché en petit. Envoie-le-moi si tu ne comprends pas.
+3. Les causes les plus fréquentes :
+
+| Message affiché | Cause | Solution |
+|---|---|---|
+| « L'e-mail de confirmation n'a pas pu être envoyé… » (`email_address_not_authorized`) | Le service d'e-mail de Supabase n'envoie qu'aux membres de l'équipe | Configure un SMTP Brevo (étape 2). **Pour tester tout de suite** : désactive *Confirm email* dans **Authentication → Sign In / Providers → Email**, et réactive-le avant le lancement. |
+| « Trop d'e-mails envoyés… » | Limite de 2 e-mails par heure | Attends une heure, ou configure le SMTP. |
+| « Confirme d'abord ton adresse e-mail » | Le compte existe mais n'est pas confirmé | Clique sur le lien reçu par mail (regarde dans les spams). |
+| « Un compte existe déjà avec cet e-mail » | Une première tentative a créé le compte | Utilise l'onglet **Connexion**. Si l'e-mail de confirmation n'est jamais arrivé : Supabase → **Authentication → Users**, supprime ce compte, puis réinscris-toi. |
+| « clé Supabase invalide » | Variable `VITE_SUPABASE_ANON_KEY` fausse | Recopie la clé *anon public*, puis **Trigger deploy** dans Netlify. |
+| « la base de données n'est pas complètement installée » | Un fichier SQL n'a pas été exécuté | Exécute les 3 fichiers de l'étape 1, dans l'ordre. |
+
+Pour voir la cause exacte de n'importe quel échec côté serveur : Supabase → **Logs → Auth**.

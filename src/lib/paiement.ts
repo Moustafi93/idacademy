@@ -43,12 +43,13 @@ export interface Paiement {
   note_admin?: string | null
   cree_le: string
   // Pour l'espace admin : l'étudiant qui a payé
-  profils?: { prenom: string; email: string | null; telephone: string | null } | null
+  profils?: { prenom: string; nom?: string | null; email: string | null; telephone: string | null } | null
 }
 
 export interface Resultat {
   ok: boolean
   message: string
+  detail?: string // détail technique de l'erreur (affiché en petit, utile pour le diagnostic)
 }
 
 export const LIBELLES_STATUT: Record<StatutPaiement, { texte: string; classe: string }> = {

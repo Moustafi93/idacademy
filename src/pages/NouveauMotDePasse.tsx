@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/Session'
 import { supabase } from '../lib/supabase'
+import { ChampMotDePasse } from '../components/ChampMotDePasse'
 
 // Page ouverte depuis le lien « mot de passe oublié » reçu par e-mail
 export default function NouveauMotDePasse() {
@@ -38,16 +39,7 @@ export default function NouveauMotDePasse() {
           <label htmlFor="nouveau" className="text-sm font-bold text-gris">
             Choisis un nouveau mot de passe (6 caractères minimum)
           </label>
-          <input
-            id="nouveau"
-            type="password"
-            required
-            minLength={6}
-            autoComplete="new-password"
-            value={motDePasse}
-            onChange={(e) => setMotDePasse(e.target.value)}
-            className="h-[50px] rounded-full border border-ligne bg-fond px-[18px] text-[15px]"
-          />
+          <ChampMotDePasse id="nouveau" valeur={motDePasse} onChange={setMotDePasse} nouveau className="h-[50px] rounded-full border border-ligne bg-fond px-[18px] text-[15px]" />
           {message && (
             <p role="status" className={`m-0 rounded-2xl p-3 text-sm font-bold ${message.ok ? 'bg-menthe text-menthe-fonce' : 'bg-[#FFE3D8] text-[#9A2A06]'}`}>
               {message.texte}

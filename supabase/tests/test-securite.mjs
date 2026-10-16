@@ -170,6 +170,18 @@ verifier('paiement espèces tracé', r.rows?.[0]?.montant === 3000 && r.rows[0].
 r = await en(ADMIN, `select enregistrer_paiement_admin('${C}', 'mensuel', 'offert', '')`)
 verifier('accès offert : montant 0', json(r)?.ok === true)
 
+// 6 ter. Nom à l'inscription et version du schéma
+const E = '66666666-6666-6666-6666-666666666666'
+await db.exec(`insert into auth.users values ('${E}', 'ange@ex.ci', '{"prenom":"Ange","nom":"Yao"}')`)
+r = await en(E, 'select prenom, nom from profils')
+verifier('prénom et nom enregistrés à l\'inscription', r.rows?.[0]?.prenom === 'Ange' && r.rows[0].nom === 'Yao', JSON.stringify(r.rows))
+r = await en(E, `update profils set nom = 'Yao Kouamé' where id = '${E}'`)
+verifier('l\'étudiant peut corriger son nom', !r.erreur && r.affected === 1)
+r = await en(E, `update profils set type_acces = 'premium' where id = '${E}'`)
+verifier('mais toujours pas son accès', !!r.erreur)
+r = await en('anon', 'select version_schema() as v')
+verifier('version du schéma lisible par la page diagnostic', r.rows?.[0]?.v === 3)
+
 // 7. Visiteur, paramètres, tarifs, statistiques
 r = await en('anon', 'select formule, prix from tarifs order by prix')
 verifier('tarifs publics', r.rows?.length === 2 && r.rows[0].prix === 3000)
@@ -179,7 +191,7 @@ r = await en(A, 'select statistiques_admin()')
 verifier('statistiques réservées à l\'admin', json(r) === null)
 r = await en(ADMIN, 'select statistiques_admin()')
 const st = json(r)
-verifier('statistiques admin', st?.inscrits === 5 && st.abonnes_actifs === 3 && st.recette_mois === 9000 && st.en_attente === 2, JSON.stringify(st))
+verifier('statistiques admin', st?.inscrits === 6 && st.abonnes_actifs === 3 && st.recette_mois === 9000 && st.en_attente === 2, JSON.stringify(st))
 
 // 8. Progression
 r = await en(A, `insert into progression (user_id, lecon) values ('${A}', 'algorithmique/les-boucles/la-boucle-pour')`)

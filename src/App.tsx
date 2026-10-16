@@ -15,6 +15,7 @@ import Introuvable from './pages/Introuvable'
 import Admin from './pages/Admin'
 import NouveauMotDePasse from './pages/NouveauMotDePasse'
 import Conditions from './pages/Conditions'
+import Diagnostic from './pages/Diagnostic'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="admin" element={<Admin />} />
             <Route path="nouveau-mot-de-passe" element={<NouveauMotDePasse />} />
             <Route path="conditions" element={<Conditions />} />
+            <Route path="diagnostic" element={<Diagnostic />} />
             <Route path="*" element={<Introuvable />} />
           </Route>
         </Routes>

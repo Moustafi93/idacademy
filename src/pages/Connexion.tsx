@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSession } from '../context/Session'
+import { ChampMotDePasse } from '../components/ChampMotDePasse'
 
 type Mode = 'inscription' | 'connexion' | 'oubli'
 
@@ -20,10 +21,11 @@ export default function Connexion() {
   const retour = params.get('retour')?.startsWith('/') ? params.get('retour')! : '/'
 
   const [prenom, setPrenom] = useState('')
+  const [nom, setNom] = useState('')
   const [email, setEmail] = useState('')
   const [motDePasse, setMotDePasse] = useState('')
   const [envoi, setEnvoi] = useState(false)
-  const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null)
+  const [message, setMessage] = useState<{ ok: boolean; texte: string; detail?: string } | null>(null)
 
   if (pret && utilisateur) return <Navigate to={retour} replace />
 
@@ -40,9 +42,9 @@ export default function Connexion() {
     setEnvoi(true)
     setMessage(null)
     const r =
-      mode === 'inscription' ? await inscrire(prenom, email, motDePasse) : mode === 'connexion' ? await connecter(email, motDePasse) : await motDePasseOublie(email)
+      mode === 'inscription' ? await inscrire(prenom, nom, email, motDePasse) : mode === 'connexion' ? await connecter(email, motDePasse) : await motDePasseOublie(email)
     setEnvoi(false)
-    setMessage({ ok: r.ok, texte: r.message })
+    setMessage({ ok: r.ok, texte: r.message, detail: r.detail })
     // En démo, ou si la confirmation par e-mail est désactivée, on est connecté tout de suite
     if (r.ok && mode !== 'oubli' && !modeServeur) navigate(retour)
   }
@@ -78,11 +80,19 @@ export default function Connexion() {
         <h2 className="m-0 font-display text-xl font-bold">{TITRES[mode]}</h2>
 
         {mode === 'inscription' && (
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="prenom" className="text-sm font-bold text-gris">
-              Prénom
-            </label>
-            <input id="prenom" required autoComplete="given-name" value={prenom} onChange={(e) => setPrenom(e.target.value)} className={champ} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <label htmlFor="nom" className="text-sm font-bold text-gris">
+                Nom
+              </label>
+              <input id="nom" required autoComplete="family-name" value={nom} onChange={(e) => setNom(e.target.value)} className={`${champ} min-w-0`} />
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <label htmlFor="prenom" className="text-sm font-bold text-gris">
+                Prénom
+              </label>
+              <input id="prenom" required autoComplete="given-name" value={prenom} onChange={(e) => setPrenom(e.target.value)} className={`${champ} min-w-0`} />
+            </div>
           </div>
         )}
         <div className="flex flex-col gap-1.5">
@@ -96,23 +106,22 @@ export default function Connexion() {
             <label htmlFor="mot-de-passe" className="text-sm font-bold text-gris">
               Mot de passe {mode === 'inscription' && <span className="font-semibold">(6 caractères minimum)</span>}
             </label>
-            <input
-              id="mot-de-passe"
-              type="password"
-              required
-              minLength={6}
-              autoComplete={mode === 'inscription' ? 'new-password' : 'current-password'}
-              value={motDePasse}
-              onChange={(e) => setMotDePasse(e.target.value)}
-              className={champ}
-            />
+            <ChampMotDePasse id="mot-de-passe" valeur={motDePasse} onChange={setMotDePasse} nouveau={mode === 'inscription'} className={champ} />
           </div>
         )}
 
         {message && (
-          <p role="status" className={`m-0 rounded-2xl p-3.5 text-sm font-bold ${message.ok ? 'bg-menthe text-menthe-fonce' : 'bg-[#FFE3D8] text-[#9A2A06]'}`}>
-            {message.texte}
-          </p>
+          <div role="status" className={`flex flex-col gap-1.5 rounded-2xl p-3.5 text-sm font-bold ${message.ok ? 'bg-menthe text-menthe-fonce' : 'bg-[#FFE3D8] text-[#9A2A06]'}`}>
+            <p className="m-0">{message.texte}</p>
+            {message.detail && (
+              <p className="m-0 break-words font-mono text-[11px] font-semibold opacity-80">
+                Détail : {message.detail} ·{' '}
+                <Link to="/diagnostic" className="text-[#9A2A06] underline">
+                  Diagnostic
+                </Link>
+              </p>
+            )}
+          </div>
         )}
 
         <button
