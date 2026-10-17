@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Charte graphique IDAcademy */
+@theme {
+  --color-fond: #F7F5F0;
+  --color-creme: #F1EFE8;
+  --color-ligne: #E8E4DA;
+  --color-ligne-forte: #D5D0C4;
+  --color-encre: #15172A;
+  --color-gris: #4B4E63;
+  --color-bleu: #2438F0;
+  --color-bleu-fonce: #1626B8;
+  --color-bleu-clair: #E8EAFF;
+  --color-bleu-doux: #D3D8FF;
+  --color-jaune: #FFD84D;
+  --color-menthe: #6FE3AE;
+  --color-menthe-fonce: #0F2E21;
+  --color-corail: #FF8A5C;
+  --color-orange: #FF6B3D;
+
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-fond);
+    color: var(--color-encre);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-bleu);
+    outline-offset: 2px;
+  }
+}
+
+/* Animations du résumé vidéo */
+@keyframes apparaitre {
+  from { opacity: 0; transform: translateY(0.6em); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes remplir {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes vider {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.anim-apparaitre { animation: apparaitre 0.5s ease both; }
+/* Compte à rebours des défis : la barre se vide pendant le temps de réflexion */
+.anim-rebours { animation: vider var(--duree-rebours, 8s) linear both; transform-origin: left; }
+.anim-pop { animation: pop 0.45s ease both; }
+.lecteur:fullscreen {
+  background: #15172A;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2vw;
+}
+.lecteur:fullscreen > * { width: min(100%, calc(82vh * 16 / 9)); }
+@media (prefers-reduced-motion: reduce) {
+  .anim-apparaitre, .anim-pop { animation: none; }
+}
+/* Unité de taille du résumé vidéo : proportionnelle à la largeur du lecteur, plus grande sur téléphone */
+.scene { --u: 1cqw; }
+@container (max-width: 511px) {
+  .scene { --u: 1.75cqw; }
+}
