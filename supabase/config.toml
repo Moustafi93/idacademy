@@ -1,0 +1,10 @@
+project_id = "idacademy"
+
+# Réglages des fonctions Supabase.
+# Le webhook Djamo est appelé par Djamo (sans compte IDAcademy) : la sécurité
+# repose sur la signature HMAC vérifiée dans la fonction.
+[functions.djamo-webhook]
+verify_jwt = false
+
+[functions.djamo-paiement]
+verify_jwt = true
